@@ -1,0 +1,170 @@
+<head>
+    <script>
+var nightMode = localStorage.getItem('theme') == 'light';
+
+if (nightMode) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+}
+
+
+
+
+    </script>
+    <style>
+    :root {
+        --darker: #777777;
+        --body-text: #000000;
+        --title-text: #303030;
+        --bg-color: #FAFAFA;
+    }
+    [data-theme="dark"] {
+        --darker: #AAAAAA;
+        --body-text: #FFFFFF;
+        --title-text: #FFFFFF;
+        --bg-color: #151515;
+    }
+
+    body {
+        font-family: "Georgia", serif;
+        color: var(--body-text);
+        background-color: var(--bg-color);
+    }
+
+    h1 {
+        text-align: right;
+        color: var(--title-text);
+    }
+
+    h2 {
+        color: var(--title-text);
+    }
+
+    .content {
+        content: "";
+        display: table;
+          clear: both;
+    }
+
+    .left_nav {
+        flex-basis:200px;
+    }
+    .right_nav {
+        flex-basis:200px;
+    }
+
+    .primary_body {
+        width:100%;
+        line-height: 130%;
+    }
+
+    .flex-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    .subheading {
+        position: relative;
+        color: var(--darker);
+        top: -18px;
+        font-size:80%;
+        font-style: italic;
+    }
+
+    #main {
+        width: 95%;
+          margin-left: auto;
+          margin-right: auto;
+    }
+
+    button.clickable {
+        font-family:inherit;
+        background:none;
+        border:none;
+        color: inherit;
+        font-style: inherit;
+    }
+
+
+
+
+
+    </style>
+</head>
+<body>
+
+<div id="main">
+    <h1>{{title}}</h1>
+    <div style="text-align: right;" class="subheading">
+        <button id="nightmode" class="clickable">night mode (off)</button>
+        | archive | <a href="https://midoski.itch.io/">itch.io</a>
+    </div>
+
+    <div class="flex-container">
+        <div class="left_nav">
+            <p></p>
+        </div>
+        <div class="primary_body">
+            {%- for token in body -%}
+            {%- if token.token_type == "header" -%}
+            <h2>{{token.meta.text}}</h2>
+            <div class="subheading">{{token.meta.date}}</div>
+            {%- endif -%}
+
+            {%- if token.token_type == "para_start" -%}
+            <p>
+                {%- endif -%}
+                {%- if token.token_type == "para_start" -%}
+            </p>
+            {%- endif -%}
+
+            {%- if token.token_type == "span" -%}
+            {{token.meta.text}}
+            {%- endif -%}
+
+            {%- if token.token_type == "url" -%}
+            <a href="https://{{token.meta.url}}">{{token.meta.text}}</a>
+            {%- endif -%}
+
+            {%- if token.token_type == "github_gist" -%}
+            <script src="{{token.meta.url}}"></script>
+            {%- endif -%}
+
+            {%- if token.token_type == "footer" -%}
+            <hr>
+            {%- endif -%}
+            {%- endfor -%}
+        </div>
+        <div class="right_nav">
+        </div>
+    </div>
+</div>
+
+<script>
+const toggleSwitch = document.querySelector('#nightmode');
+
+function switchTheme(e) {
+    if (!nightMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    else {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+    nightMode = !nightMode;
+    localStorage.setItem('theme', nightMode ? 'light' : 'dark');
+    toggleSwitch.textContent = "night mode " + (nightMode ? "(on)" : "(off)");
+    console.log("hmm");
+}
+
+toggleSwitch.addEventListener('click', switchTheme, false);
+
+if (nightMode) {
+    toggleSwitch.textContent = "night mode " + (nightMode ? "(on)" : "(off)");
+}
+
+
+
+
+
+</script>
+</body>
