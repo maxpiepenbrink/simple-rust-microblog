@@ -1072,9 +1072,11 @@ dependencies = [
  "chrono",
  "itertools",
  "lazy_static",
+ "notify",
  "rocket",
  "rocket_contrib",
  "serde",
+ "walkdir",
 ]
 
 [[package]]

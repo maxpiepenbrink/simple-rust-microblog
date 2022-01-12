@@ -1,13 +1,11 @@
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
 var nightMode = localStorage.getItem('theme') == 'light';
 
 if (nightMode) {
     document.documentElement.setAttribute('data-theme', 'dark');
 }
-
-
-
 
     </script>
     <style>
@@ -71,6 +69,12 @@ if (nightMode) {
         font-style: italic;
     }
 
+    .primary_body img {
+        max-height: 500px;
+        height: 70%;
+        width: auto;
+    }
+
     #main {
         width: 95%;
           margin-left: auto;
@@ -87,8 +91,6 @@ if (nightMode) {
 
 
 
-
-
     </style>
 </head>
 <body>
@@ -97,7 +99,7 @@ if (nightMode) {
     <h1>{{title}}</h1>
     <div style="text-align: right;" class="subheading">
         <button id="nightmode" class="clickable">night mode (off)</button>
-        | archive | <a href="https://midoski.itch.io/">itch.io</a>
+        | archive (TODO) | <a href="https://midoski.itch.io/">itch.io</a>
     </div>
 
     <div class="flex-container">
@@ -124,6 +126,16 @@ if (nightMode) {
 
             {%- if token.token_type == "url" -%}
             <a href="https://{{token.meta.url}}">{{token.meta.text}}</a>
+            {%- endif -%}
+
+            {%- if token.token_type == "image" -%}
+            {%- if token.meta.lightbox -%}
+            <a href="{{token.meta.image}}" class="glightbox">
+                <img src="{{token.meta.image}}"/>
+            </a>
+            {%- else -%}
+            <img src="{{token.meta.image}}"/>
+            {%- endif -%}
             {%- endif -%}
 
             {%- if token.token_type == "github_gist" -%}
@@ -163,8 +175,14 @@ if (nightMode) {
 }
 
 
-
-
-
+</script>
+<link rel="stylesheet" href="static/glightbox.css">
+<script src="static/glightbox.min.js"></script>
+<script type="text/javascript">
+const lightbox = GLightbox({
+    touchNavigation: true,
+    loop: true,
+    autoplayVideos: true
+});
 </script>
 </body>

@@ -1,14 +1,17 @@
 use std::{fs, io};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs::Metadata;
+use std::fs::{DirEntry, Metadata};
+use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::ops::Add;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::CharIndices;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rocket::http::ext::IntoCollection;
+use walkdir::WalkDir;
 
 use crate::site_cache;
 use crate::tokens::*;
@@ -26,7 +29,7 @@ mod tests {
             Newline,
             EOF,
         ]);
-        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens.len(), 2);
     }
 
     #[test]
@@ -53,7 +56,8 @@ mod tests {
             Span("world!".into()),
             EOF
         ]);
-        assert_eq!(tokens.len(), 1);
+        println!("tokens: {:?}", tokens);
+        assert_eq!(tokens.len(), 2);
     }
 
     #[test]
@@ -78,6 +82,23 @@ mod tests {
         assert!(matches!(tokens[7], Span(_)));
         assert!(matches!(tokens[8], EndParagraph));
     }
+
+    #[test]
+    fn test_url_mapping() {
+        let page_tokens = vec![
+            PageToken {
+                token_type: "image".into(),
+                meta: HashMap::from_iter(
+                    vec![
+                        ("image".to_string(), "image.png".to_string())
+                    ].into_iter()),
+            }
+        ];
+
+        let page_tokens = create_file_links(page_tokens, Path::new("test"), &"hash".to_string());
+
+        assert_eq!("site-content/hash/image.png", page_tokens.get(0).unwrap().meta.get("image").unwrap())
+    }
 }
 
 const NON_PARAGRAPH_TAG_TYPES: &'static [&'static str] = &[
@@ -85,14 +106,16 @@ const NON_PARAGRAPH_TAG_TYPES: &'static [&'static str] = &[
     &"title",
 ];
 
-
 pub fn load_site_content() {
-    let mut entries = fs::read_dir("./content/").unwrap()
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>().unwrap();
+    let entries = WalkDir::new("./content/")
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .map(|e| e.into_path())
+        .filter(|e| e.is_file())
+        .filter(|e| e.extension().unwrap() == "hmm")
+        .collect::<Vec<PathBuf>>();
 
     let content_files = entries.iter()
-        .filter_map(|x| x.file_name())
         .filter_map(|x| x.to_str())
         .collect::<Vec<_>>();
     println!("Processing content files: {}", content_files.join(", "));
@@ -101,8 +124,8 @@ pub fn load_site_content() {
         .map(|file| compile_content(file))
         .collect::<Vec<_>>();
 
-    println!("final pages: {:?}", results);
-    println!("loading pages into global cache...");
+    println!("{:?}", results);
+    println!("Loading pages into global cache...");
     for page in results {
         if page.is_err() { continue; }
         let p = page.unwrap();
@@ -207,18 +230,17 @@ fn merge_spans(tokens: Vec<Token>) -> Vec<Token> {
         }
     }
 
-    println!("{:?}", new_tokens);
     return new_tokens;
 }
 
+fn compile_content(file: PathBuf) -> Result<SiteContent, &'static str> {
 
-fn compile_content(file: PathBuf) -> Result<SiteContent, String> {
-    println!("Loading page: {:?}", file);
+    // make sure it's a file
+    let content_meta = fs::metadata(file.clone())
+        .expect("Something went wrong reading the file");
 
     // open palm slam that shit into ram
     let contents = fs::read_to_string(file.clone())
-        .expect("Something went wrong reading the file");
-    let content_meta = fs::metadata(file.clone())
         .expect("Something went wrong reading the file");
 
     // lex it
@@ -229,9 +251,56 @@ fn compile_content(file: PathBuf) -> Result<SiteContent, String> {
     let tokens = remove_redundant_newlines(tokens);
     let tokens = merge_spans(tokens);
     let tokens = create_paragraphs(tokens);
-    println!("{:?}", tokens);
 
-    //
+    let page_tokens = convert_to_page_tokens(tokens);
+
+    let local_page_path = file.parent().unwrap();
+
+    let file_name: String = file.to_str().unwrap().into();
+    let mut s = DefaultHasher::new();
+    file_name.hash(&mut s);
+    let title_hash = s.finish().to_string();
+    let page_tokens = create_file_links(page_tokens, local_page_path, &title_hash);
+
+    site_cache::create_link(&title_hash, local_page_path);
+
+    let result = SiteContent {
+        timestamp: decide_timestamp(&page_tokens, &content_meta),
+        file_name: file_name.clone(),
+        title: file_name,
+        page_tokens,
+    };
+    return Ok(result);
+}
+
+fn create_file_links(tokens: Vec<PageToken>, root: &Path, title_hash: &String) -> Vec<PageToken> {
+    let mut new_tokens: Vec<PageToken> = Vec::new();
+
+    let mut iter = tokens.into_iter();
+    while let Some(token) = iter.next() {
+        match token {
+            PageToken { token_type, mut meta } if token_type == "image" => {
+                if let Some(url_path) = meta.get("image") {
+                    // leave fully qualified uris alone
+                    if !url_path.contains("://") {
+                        let mut os_path = root.to_path_buf().clone();
+                        os_path.push(url_path);
+
+                        let site_path = format!("site-content/{}/{}", title_hash, url_path);
+
+                        meta.insert("image".into(), site_path);
+                    }
+                }
+                new_tokens.push(PageToken { token_type, meta });
+            }
+            _ => { new_tokens.push(token); }
+        }
+    }
+
+    return new_tokens;
+}
+
+fn convert_to_page_tokens(tokens: Vec<Token>) -> Vec<PageToken> {
     let mut page_tokens: Vec<PageToken> = Vec::new();
     let mut token_iter = tokens.into_iter().peekable();
     loop {
@@ -278,15 +347,7 @@ fn compile_content(file: PathBuf) -> Result<SiteContent, String> {
             break;
         }
     }
-
-    let file_name: String = file.file_name().unwrap().to_str().unwrap().into();
-    let result = SiteContent {
-        timestamp: decide_timestamp(&page_tokens, &content_meta),
-        file_name: file_name.clone(),
-        title: file_name,
-        page_tokens,
-    };
-    return Ok(result);
+    return page_tokens;
 }
 
 fn decide_timestamp(tokens: &Vec<PageToken>, content_meta: &Metadata) -> u128 {

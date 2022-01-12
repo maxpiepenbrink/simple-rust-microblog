@@ -1,0 +1,15 @@
+#[title: This is another blog post test|timestamp:1605073296|tags:thinking]
+
+#[header|text:Another Blog Post|date:Yesterday]
+
+This is a 2nd blog post test.
+
+Here's a picture of a go board
+
+#[image:./imgs/go.png|lightbox]
+
+Another picture of a go board:
+
+#[image:imgs/go2.png|lightbox]
+
+Blah blah lorem ipsum etc.
